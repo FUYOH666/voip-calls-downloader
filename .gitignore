@@ -1,0 +1,140 @@
+# VoIP Calls Downloader - Git Ignore
+# Общие правила для монорепозитория
+
+# === СЕКРЕТЫ И ЧУВСТВИТЕЛЬНЫЕ ДАННЫЕ ===
+# ⚠️ КРИТИЧНО: Никогда не коммитьте эти файлы!
+.env
+.env.local
+.env.production
+.env.staging
+*.env
+!env_example.txt
+config.py
+credentials.json
+credentials.*
+*.key
+*.pem
+*.crt
+*.p12
+*secret*
+*token*
+.htpasswd
+.htaccess
+config.local.*
+secrets.*
+private.*
+internal.*
+
+# === БАЗЫ ДАННЫХ ===
+*.db
+*.sqlite
+*.sqlite3
+
+# === ЛОГИ ===
+# Логи могут содержать чувствительную информацию
+*.log
+logs/
+security.log
+audit.log
+access.log
+error.log
+watcher.log
+multi_account_orchestrator.log
+watcher_city_*.log
+
+# === СКАЧАННЫЕ ФАЙЛЫ ===
+downloads/
+audio/
+*.mp3
+*.wav
+*.m4a
+*.ogg
+
+# === PYTHON ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+*.pyc
+*.pyo
+*.pyd
+
+# === PYTEST И ТЕСТИРОВАНИЕ ===
+.pytest_cache/
+.coverage
+htmlcov/
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+.tox/
+.nox/
+
+# === ВРЕМЕННЫЕ И ТЕСТОВЫЕ ФАЙЛЫ ===
+research_*
+test_*.json
+test_*.html
+test_*.js
+test_*.mp3
+*.tmp
+*.temp
+temp/
+tmp/
+.cache/
+
+# === ПАКЕТЫ И ДИСТРИБУТИВЫ ===
+build/
+develop-eggs/
+dist/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# === IDE И РЕДАКТОРЫ ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# === ОС ===
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# === ПРОДАКШЕН И ДЕПЛОЙ ===
+Procfile
+.envrc
+direnv/
+nginx.conf
+apache.conf
+
+# === СТАРЫЕ ДИРЕКТОРИИ ПРОЕКТОВ ===
+# Исключаем старые директории после реструктуризации
+Mass-rostelecom/
+SvyazTransit/
+SvyazTransit-Irkutsk/
+

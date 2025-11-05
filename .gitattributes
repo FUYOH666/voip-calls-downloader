@@ -1,0 +1,21 @@
+# .gitattributes для правильной обработки файлов
+
+# Автоматически определять конец строки для текстовых файлов
+* text=auto
+
+# Явно указать текстовые файлы
+*.md text eol=lf
+*.txt text eol=lf
+*.py text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.sh text eol=lf
+
+# Исключить бинарные файлы
+*.db binary
+*.mp3 binary
+*.wav binary
+*.m4a binary
+*.ogg binary
+*.log binary
+
