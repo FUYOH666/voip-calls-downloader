@@ -10,19 +10,20 @@ import psutil
 import subprocess
 import logging
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
+from config import get_config
 
-# Загрузка конфигурации
-load_dotenv()
+# Настройка логирования с pathname:lineno
+config = get_config()
+log_config = config.logging
 
-# Настройка логирования
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=getattr(logging, log_config.level),
+    format=log_config.format,
     handlers=[
         logging.FileHandler('auto_restart.log'),
         logging.StreamHandler()
-    ]
+    ],
+    force=True,  # Перезаписываем существующую конфигурацию
 )
 logger = logging.getLogger(__name__)
 

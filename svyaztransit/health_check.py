@@ -10,13 +10,13 @@ import psutil
 import requests
 from datetime import datetime, timedelta
 from pathlib import Path
-from dotenv import load_dotenv
+from config import get_config
 
-# Загрузка конфигурации
-load_dotenv()
-
-def check_disk_space(download_dir="./downloads"):
+def check_disk_space(download_dir=None):
     """Проверить свободное место на диске"""
+    if download_dir is None:
+        config = get_config()
+        download_dir = config.download.download_dir
     try:
         stat = os.statvfs(download_dir)
         total_gb = (stat.f_blocks * stat.f_frsize) / (1024**3)
@@ -55,8 +55,11 @@ def check_process_status():
     except Exception as e:
         return {'status': 'error', 'error': str(e)}
 
-def check_database(db_path="./stranzit_calls.db"):
+def check_database(db_path=None):
     """Проверить состояние базы данных"""
+    if db_path is None:
+        config = get_config()
+        db_path = config.database.database_path
     try:
         if not os.path.exists(db_path):
             return {'status': 'warning', 'message': 'База данных не найдена'}
@@ -87,8 +90,11 @@ def check_database(db_path="./stranzit_calls.db"):
     except Exception as e:
         return {'status': 'error', 'error': str(e)}
 
-def check_downloads_dir(download_dir="./downloads"):
+def check_downloads_dir(download_dir=None):
     """Проверить директорию загрузок"""
+    if download_dir is None:
+        config = get_config()
+        download_dir = config.download.download_dir
     try:
         if not os.path.exists(download_dir):
             return {'status': 'ok', 'files_count': 0, 'total_size_mb': 0}

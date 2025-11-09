@@ -16,10 +16,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 from stranzit_auth import StranzitAuth
-from dotenv import load_dotenv
-
-# Загрузка конфигурации
-load_dotenv()
+from config import get_config
 
 class CallRecord:
     """Модель записи звонка"""
@@ -138,31 +135,48 @@ class CallRecordsWatcher:
     """Основной класс watcher-загрузчика"""
 
     def __init__(self):
-        self.auth = StranzitAuth()
-        self.download_dir = os.getenv('DOWNLOAD_DIR', './downloads')
-        self.db = DatabaseManager(os.getenv('DATABASE_PATH', './stranzit_calls.db'))
-        self.check_interval = int(os.getenv('CHECK_INTERVAL', '300'))  # 5 минут
-        self.filter_hours_back = max(0, int(os.getenv('CALL_FILTER_HOURS_BACK', '0')))
+        # Загружаем конфигурацию
+        config = get_config()
+        
+        # Настройки из конфигурации
+        stranzit_config = config.stranzit
+        download_config = config.download
+        filter_config = config.filters
+        db_config = config.database
+        log_config = config.logging
+        
+        self.auth = StranzitAuth(username=stranzit_config.username)
+        self.download_dir = download_config.download_dir
+        self.db = DatabaseManager(str(db_config.database_path))
+        self.check_interval = download_config.check_interval
+        self.filter_hours_back = 0  # Не используется в новой версии, оставлено для совместимости
 
-        # Настройка логирования
+        # Настройка логирования с pathname:lineno
+        log_format = log_config.format
+        log_handlers = [logging.StreamHandler()]
+        if log_config.log_file:
+            log_handlers.append(logging.FileHandler(log_config.log_file))
+        else:
+            log_handlers.append(logging.FileHandler('watcher.log'))
+        
         logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler('watcher.log'),
-                logging.StreamHandler()
-            ]
+            level=getattr(logging, log_config.level),
+            format=log_format,
+            handlers=log_handlers,
+            force=True,  # Перезаписываем существующую конфигурацию
         )
         self.logger = logging.getLogger(__name__)
 
-        # Создание директории для загрузок
-        Path(self.download_dir).mkdir(parents=True, exist_ok=True)
+        # Создание директории для загрузок (уже создается в валидаторе)
 
         # Инициализация graceful killer для корректного завершения
         self.killer = GracefulKiller()
 
         # Мониторинг ресурсов
         self.last_cleanup = datetime.now()
+        
+        # Сохраняем конфигурацию фильтров для использования
+        self.filter_config = filter_config
 
     def check_disk_space(self) -> dict:
         """Проверить свободное место на диске"""
@@ -323,11 +337,11 @@ class CallRecordsWatcher:
         return '0'
 
     def build_filters(self) -> Dict[str, str]:
-        """Собрать фильтры запроса из переменных окружения."""
+        """Собрать фильтры запроса из конфигурации."""
 
         now = datetime.now()
-        start_setting = os.getenv('CALL_FILTER_START', 'today_start')
-        end_setting = os.getenv('CALL_FILTER_END', 'now')
+        start_setting = self.filter_config.start
+        end_setting = self.filter_config.end
 
         start_dt = self._resolve_datetime_setting(start_setting, now)
         end_dt = self._resolve_datetime_setting(end_setting, now)
@@ -343,19 +357,20 @@ class CallRecordsWatcher:
         filters: Dict[str, str] = {
             'start_date': start_dt.strftime('%d.%m.%Y %H:%M'),
             'end_date': end_dt.strftime('%d.%m.%Y %H:%M'),
-            'records_per_page': os.getenv('CALL_FILTER_RECORDS_PER_PAGE', '50'),
+            'records_per_page': str(self.filter_config.records_per_page),
         }
 
+        # Фильтр по телефону (если есть в ENV для обратной совместимости)
         phone = os.getenv('CALL_FILTER_PHONE', '').strip()
         if phone:
             filters['phone_number'] = phone
 
-        direction_raw = os.getenv('CALL_FILTER_DIRECTION', 'any').strip()
+        direction_raw = self.filter_config.direction
         if direction_raw:
             filters['direction'] = self._resolve_direction(direction_raw)
 
-        duration_op_raw = os.getenv('CALL_FILTER_DURATION_OP', '').strip()
-        duration_value = os.getenv('CALL_FILTER_DURATION', '').strip()
+        duration_op_raw = self.filter_config.duration_op
+        duration_value = self.filter_config.duration
         if duration_op_raw:
             duration_code = self._resolve_duration_operator(duration_op_raw)
             if duration_code != '0':
@@ -376,8 +391,11 @@ class CallRecordsWatcher:
 
     def login(self) -> bool:
         """Вход в систему"""
-        username = os.getenv('STRANZIT_USERNAME')
-        password = os.getenv('STRANZIT_PASSWORD')
+        config = get_config()
+        stranzit_config = config.stranzit
+        
+        username = stranzit_config.username
+        password = stranzit_config.password
 
         if not username or not password:
             self.logger.error("Не установлены credentials")
@@ -675,6 +693,128 @@ class CallRecordsWatcher:
             except Exception as e:
                 self.logger.warning(f"Не удалось отправить email уведомление: {e}")
 
+    def health_check(self) -> dict:
+        """
+        Проверка состояния системы (health check).
+        
+        Returns:
+            dict: Статус системы с информацией о версиях, подключениях и конфигурации
+        """
+        import sys
+        import sqlite3
+        import requests
+        
+        health = {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "versions": {
+                "python": sys.version.split()[0],
+                "requests": requests.__version__,
+                "psutil": psutil.__version__,
+            },
+            "configuration": {
+                "download_dir": str(self.download_dir),
+                "check_interval": self.check_interval,
+                "filter_direction": self.filter_config.direction,
+                "filter_start": self.filter_config.start,
+                "filter_end": self.filter_config.end,
+            },
+            "checks": {},
+        }
+        
+        # Проверка базы данных
+        try:
+            with sqlite3.connect(self.db.db_path) as conn:
+                cursor = conn.execute("SELECT COUNT(*) FROM downloaded_records")
+                total_records = cursor.fetchone()[0]
+            health["checks"]["database"] = {
+                "status": "ok",
+                "path": str(self.db.db_path),
+                "total_records": total_records,
+            }
+        except Exception as e:
+            health["checks"]["database"] = {
+                "status": "error",
+                "error": str(e),
+            }
+            health["status"] = "degraded"
+        
+        # Проверка директории загрузок
+        try:
+            download_path = Path(self.download_dir)
+            if download_path.exists() and download_path.is_dir():
+                # Проверяем доступность записи
+                test_file = download_path / ".health_check"
+                test_file.touch()
+                test_file.unlink()
+                health["checks"]["download_dir"] = {
+                    "status": "ok",
+                    "path": str(download_path),
+                    "writable": True,
+                }
+            else:
+                health["checks"]["download_dir"] = {
+                    "status": "error",
+                    "error": "Directory does not exist",
+                }
+                health["status"] = "degraded"
+        except Exception as e:
+            health["checks"]["download_dir"] = {
+                "status": "error",
+                "error": str(e),
+            }
+            health["status"] = "degraded"
+        
+        # Проверка дискового пространства
+        try:
+            disk_info = self.check_disk_space()
+            health["checks"]["disk_space"] = {
+                "status": "ok" if disk_info["free_gb"] > 1.0 else "warning",
+                "free_gb": round(disk_info["free_gb"], 2),
+                "usage_percent": round(disk_info["usage_percent"], 1),
+            }
+            if disk_info["free_gb"] < 1.0:
+                health["status"] = "degraded"
+        except Exception as e:
+            health["checks"]["disk_space"] = {
+                "status": "error",
+                "error": str(e),
+            }
+            health["status"] = "degraded"
+        
+        # Проверка подключения к Stranzit API
+        try:
+            if self.auth.is_authenticated:
+                health["checks"]["stranzit_auth"] = {
+                    "status": "ok",
+                    "authenticated": True,
+                    "base_url": self.auth.BASE_URL,
+                }
+            else:
+                # Пробуем аутентифицироваться
+                if self.login():
+                    health["checks"]["stranzit_auth"] = {
+                        "status": "ok",
+                        "authenticated": True,
+                        "base_url": self.auth.BASE_URL,
+                    }
+                else:
+                    health["checks"]["stranzit_auth"] = {
+                        "status": "error",
+                        "authenticated": False,
+                        "error": "Authentication failed",
+                    }
+                    health["status"] = "unhealthy"
+        except Exception as e:
+            health["checks"]["stranzit_auth"] = {
+                "status": "error",
+                "error": str(e),
+            }
+            health["status"] = "unhealthy"
+        
+        return health
+
+
 def main():
     """Главная функция"""
     import argparse
@@ -682,10 +822,48 @@ def main():
     parser = argparse.ArgumentParser(description='Stranzit Call Records Watcher')
     parser.add_argument('--once', action='store_true', help='Запустить один цикл и выйти')
     parser.add_argument('--hours', type=int, default=24, help='Количество часов для поиска (по умолчанию 24)')
+    parser.add_argument('--health', action='store_true', help='Выполнить health check и вывести статус системы')
 
     args = parser.parse_args()
 
     watcher = CallRecordsWatcher()
+    
+    # Health check команда
+    if args.health:
+        try:
+            health = watcher.health_check()
+            
+            print("\n=== Health Check ===")
+            print(f"Status: {health['status']}")
+            print(f"Timestamp: {health['timestamp']}")
+            print("\nVersions:")
+            for key, value in health['versions'].items():
+                print(f"  {key}: {value}")
+            print("\nConfiguration:")
+            for key, value in health['configuration'].items():
+                print(f"  {key}: {value}")
+            print("\nChecks:")
+            for check_name, check_result in health['checks'].items():
+                status = check_result.get('status', 'unknown')
+                print(f"  {check_name}: {status}")
+                if 'error' in check_result:
+                    print(f"    Error: {check_result['error']}")
+                elif check_name == 'database' and 'total_records' in check_result:
+                    print(f"    Total records: {check_result['total_records']}")
+                elif check_name == 'download_dir' and 'writable' in check_result:
+                    print(f"    Writable: {check_result['writable']}")
+                elif check_name == 'disk_space' and 'free_gb' in check_result:
+                    print(f"    Free: {check_result['free_gb']} GB ({check_result['usage_percent']}% used)")
+                elif check_name == 'stranzit_auth' and 'authenticated' in check_result:
+                    print(f"    Authenticated: {check_result['authenticated']}")
+                    print(f"    Base URL: {check_result.get('base_url', 'N/A')}")
+            
+            import sys
+            sys.exit(0 if health['status'] == 'healthy' else 1)
+        except Exception as e:
+            print(f"❌ Ошибка при выполнении health check: {e}")
+            import sys
+            sys.exit(1)
 
     if args.once:
         # Один цикл

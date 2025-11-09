@@ -1,6 +1,6 @@
 #!/bin/bash
-# CloudPBX RT Call Records Watcher - Cron скрипт
-# Запускается каждые 5 минут для проверки новых звонков
+# CloudPBX RT Call Records Watcher - Скрипт запуска
+# Запускает загрузчик для одного аккаунта
 
 # Переходим в директорию проекта
 cd "$(dirname "$0")"
@@ -8,23 +8,29 @@ cd "$(dirname "$0")"
 # Проверяем, существует ли .env файл
 if [ ! -f ".env" ]; then
     echo "$(date): Ошибка - файл .env не найден!"
+    echo "Скопируйте .env.example в .env и заполните данные:"
+    echo "  cp .env.example .env"
     exit 1
 fi
 
-# Проверяем наличие виртуального окружения
-if [ ! -d "venv" ]; then
-    echo "$(date): Создаю виртуальное окружение..."
-    python3 -m venv venv
-    source venv/bin/activate
-    pip install --upgrade pip==25.2
-    pip install -r requirements.txt
+# Проверяем наличие uv
+if ! command -v uv &> /dev/null; then
+    echo "$(date): Ошибка - uv не установлен!"
+    echo "Установите uv:"
+    echo "  curl -LsSf https://astral.sh/uv/install.sh | sh"
+    exit 1
 fi
 
-# Активируем виртуальное окружение
-source venv/bin/activate
+# Синхронизируем зависимости через uv
+uv sync
 
-# Запускаем watcher в непрерывном режиме (для оркестратора)
-python3 call_records_watcher.py >> watcher.log 2>&1
+if [ $? -ne 0 ]; then
+    echo "$(date): Ошибка синхронизации зависимостей"
+    exit 1
+fi
 
-# Код выхода 0 означает успех
+# Запускаем watcher
+uv run call_records_watcher.py "$@"
+
+# Код выхода
 exit $?

@@ -13,10 +13,10 @@ import logging
 import requests
 from typing import Optional, Dict
 
-# Настройка логирования
+# Настройка логирования с pathname:lineno
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(name)s - %(pathname)s:%(lineno)d - %(message)s',
 )
 logger = logging.getLogger(__name__)
 
@@ -338,24 +338,25 @@ class CloudPBXAuth:
 
 def main():
     """Пример использования модуля аутентификации."""
-    import os
-    from dotenv import load_dotenv
+    from config import get_config
     
-    load_dotenv()
+    config = get_config()
+    cloudpbx_config = config.cloudpbx
     
-    login = os.getenv('CLOUDPBX_LOGIN')
-    password = os.getenv('CLOUDPBX_PASSWORD')
-    domain = os.getenv('CLOUDPBX_DOMAIN')
-    
-    if not all([login, password, domain]):
-        print("❌ Не установлены переменные окружения: CLOUDPBX_LOGIN, CLOUDPBX_PASSWORD, CLOUDPBX_DOMAIN")
+    if not all([cloudpbx_config.login, cloudpbx_config.password, cloudpbx_config.domain]):
+        logger.error(
+            "Не установлены переменные окружения: CLOUDPBX_LOGIN, CLOUDPBX_PASSWORD, CLOUDPBX_DOMAIN",
+        )
         return
     
     # Создаём экземпляр клиента
-    auth = CloudPBXAuth(login=login, domain=domain)
+    auth = CloudPBXAuth(
+        login=cloudpbx_config.login,
+        domain=cloudpbx_config.domain,
+    )
     
     # Выполняем аутентификацию
-    if auth.authenticate(password=password):
+    if auth.authenticate(password=cloudpbx_config.password):
         print(f"✅ Аутентификация успешна!")
         print(f"User ID: {auth.user_id}")
         print(f"Domain ID: {auth.domain_id}")

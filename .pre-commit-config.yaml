@@ -1,0 +1,59 @@
+# Pre-commit hooks configuration for voip-calls-downloader
+# See https://pre-commit.com for more information
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+
+  # Ruff for linting and formatting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.15
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # Pyright for type checking
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.351
+    hooks:
+      - id: pyright
+        args: [--project, pyrightconfig.json]
+
+  # Bandit for security checks
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        args: [-c, .bandit.yml, -r, rostelcom, svyaztransit]
+        exclude: ^tests/
+
+  # Codespell for spelling checks
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.2.6
+    hooks:
+      - id: codespell
+        args: [--ignore-words-list, "rostelecom,stranzit,cloudpbx"]
+        exclude: ^(.*\.(db|log|mp3|wav)|downloads/|venv/|\.venv/)
+
+  # Check for secrets
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: ^(.*\.(db|log|mp3|wav)|downloads/|venv/|\.venv/)
+

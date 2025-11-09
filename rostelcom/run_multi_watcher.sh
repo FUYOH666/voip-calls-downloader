@@ -20,39 +20,30 @@ echo ""
 # Проверяем, существует ли .env файл
 if [ ! -f ".env" ]; then
     echo -e "${RED}❌ Ошибка - файл .env не найден!${NC}"
-    echo "Скопируйте env_example.txt в .env и заполните данные:"
-    echo "  cp env_example.txt .env"
+    echo "Скопируйте .env.example в .env и заполните данные:"
+    echo "  cp .env.example .env"
     echo "  nano .env"
     exit 1
 fi
 
-# Проверяем наличие виртуального окружения
-if [ ! -d "venv" ]; then
-    echo -e "${YELLOW}⚠️  Виртуальное окружение не найдено. Создаю...${NC}"
-    python3.12 -m venv venv
-    
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}❌ Ошибка создания виртуального окружения${NC}"
-        exit 1
-    fi
-    
-    echo -e "${GREEN}✅ Виртуальное окружение создано${NC}"
-    
-    # Обновляем pip
-    echo "Обновление pip..."
-    ./venv/bin/python -m pip install --upgrade pip==25.2
-    
-    # Устанавливаем зависимости
-    echo "Установка зависимостей..."
-    ./venv/bin/python -m pip install -r requirements.txt
-    
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}❌ Ошибка установки зависимостей${NC}"
-        exit 1
-    fi
-    
-    echo -e "${GREEN}✅ Зависимости установлены${NC}"
+# Проверяем наличие uv
+if ! command -v uv &> /dev/null; then
+    echo -e "${RED}❌ Ошибка - uv не установлен!${NC}"
+    echo "Установите uv:"
+    echo "  curl -LsSf https://astral.sh/uv/install.sh | sh"
+    exit 1
 fi
+
+# Синхронизируем зависимости через uv
+echo -e "${YELLOW}Синхронизация зависимостей через uv...${NC}"
+uv sync
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}❌ Ошибка синхронизации зависимостей${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ Зависимости синхронизированы${NC}"
 
 # Проверяем, установлены ли пароли
 if grep -q "ЗАПОЛНИТЕ_ПАРОЛЬ" .env; then
@@ -76,9 +67,9 @@ echo ""
 # Добавляем --delay 3 по умолчанию, если не указан
 if [[ "$@" != *"--delay"* ]]; then
     echo -e "${YELLOW}Используется задержка 3 секунды между городами (защита от rate limit)${NC}"
-    ./venv/bin/python multi_account_downloader.py --delay 3 "$@"
+    uv run multi_account_downloader.py --delay 3 "$@"
 else
-    ./venv/bin/python multi_account_downloader.py "$@"
+    uv run multi_account_downloader.py "$@"
 fi
 
 # Код выхода

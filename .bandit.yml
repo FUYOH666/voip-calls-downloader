@@ -1,0 +1,113 @@
+# Bandit configuration for voip-calls-downloader
+# Bandit is a security linter for Python code
+
+# Skip specific tests
+skips:
+  - B101  # assert_used (allow asserts in tests)
+  - B601  # shell_injection_subprocess (allow subprocess for CLI tools)
+
+# Exclude paths
+exclude_dirs:
+  - ".venv"
+  - "venv"
+  - "env"
+  - "ENV"
+  - ".pytest_cache"
+  - "build"
+  - "dist"
+  - "*.egg-info"
+  - "downloads"
+  - "tests"
+
+# Test configuration
+tests:
+  - B101  # assert_used
+  - B102  # exec_used
+  - B103  # set_bad_file_permissions
+  - B104  # hardcoded_bind_all_interfaces
+  - B105  # hardcoded_password_string
+  - B106  # hardcoded_password_funcarg
+  - B107  # hardcoded_password_default
+  - B108  # hardcoded_tmp_directory
+  - B109  # hardcoded_sql_expressions
+  - B110  # try_except_pass
+  - B111  # try_except_continue
+  - B112  # try_except_pass_continue
+  - B201  # flask_debug_true
+  - B301  # blacklist_calls
+  - B302  # blacklist_imports
+  - B303  # blacklist_import_function
+  - B304  # blacklist_calls
+  - B305  # blacklist_calls
+  - B306  # mktemp
+  - B307  # eval
+  - B308  # mark_safe
+  - B309  # httpsconnection
+  - B310  # urllib_urlopen
+  - B311  # random
+  - B312  # telnetlib
+  - B313  # xml_bad_cElementTree
+  - B314  # xml_bad_ElementTree
+  - B315  # xml_bad_expatreader
+  - B316  # xml_bad_expatbuilder
+  - B317  # xml_bad_saxparser
+  - B318  # xml_bad_minidom
+  - B319  # xml_bad_pulldom
+  - B320  # xml_bad_xmlrpc
+  - B321  # ftplib
+  - B322  # input
+  - B323  # unverified_context
+  - B324  # hashlib_insecure
+  - B325  # tempnam
+  - B326  # yaml_load
+  - B327  # pickle
+  - B401  # import_telnetlib
+  - B402  # import_ftplib
+  - B403  # import_pickle
+  - B404  # import_subprocess
+  - B405  # import_xmlrpc
+  - B406  # import_xmlrpc_client
+  - B407  # import_xmlrpc_server
+  - B408  # import_xmlrpc_request
+  - B409  # import_xmlrpc_response
+  - B410  # import_lxml
+  - B411  # import_xmlrpclib
+  - B501  # request_with_no_cert_validation
+  - B502  # ssl_with_bad_version
+  - B503  # ssl_with_bad_defaults
+  - B504  # ssl_with_no_version
+  - B505  # weak_cryptographic_key
+  - B506  # yaml_load
+  - B507  # ssh_no_host_key_verification
+  - B508  # snmp_insecure_version
+  - B509  # django_extra_used
+  - B510  # django_rawsql_used
+  - B511  # request_with_no_cert_validation
+  - B512  # shell_injection_subprocess
+  - B601  # shell_injection_subprocess
+  - B602  # shell_injection_os_system
+  - B603  # shell_injection_popen
+  - B604  # shell_injection_popen2
+  - B605  # shell_injection_popen3
+  - B606  # shell_injection_popen4
+  - B607  # shell_injection_start_process
+  - B608  # hardcoded_sql_expressions
+  - B609  # linux_commands_wildcard_injection
+  - B610  # django_extra_used
+  - B611  # django_rawsql_used
+
+# Confidence level (low, medium, high)
+confidence:
+  - low
+  - medium
+  - high
+
+# Severity level (low, medium, high)
+severity:
+  - low
+  - medium
+  - high
+
+# Aggressive mode
+aggressive: false
+

@@ -2,10 +2,12 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
-[![Platform: Linux](https://img.shields.io/badge/platform-Linux-lightgrey.svg)](https://github.com/FUYOH666/voip-calls-downloader)
+[![Platform: Linux](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/FUYOH666/voip-calls-downloader)
 [![Website](https://img.shields.io/badge/website-scanovich.ai-blue)](https://scanovich.ai)
 
 **Автоматическая загрузка записей звонков из CloudPBX Ростелеком и Связьтранзит. Python CLI инструменты для мониторинга и загрузки аудио-звонков.**
+
+**🇷🇺 [Русская версия](README.md) | 🇬🇧 [English Version](README_EN.md)**
 
 ---
 
@@ -52,6 +54,7 @@ VoIP Calls Downloader — это набор инструментов для ав
 ## Требования
 
 - **Python 3.12** или выше
+- **uv** - менеджер пакетов Python (установка: `curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - **Linux** или **macOS** (Windows не поддерживается)
 - Учетные данные для доступа к соответствующему VoIP-провайдеру
 
@@ -63,29 +66,25 @@ VoIP Calls Downloader — это набор инструментов для ав
 
 ```bash
 cd rostelcom
-python3.12 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp env_example.txt .env
+uv sync
+cp .env.example .env
 # Отредактируйте .env с вашими данными
-python call_records_watcher.py --city-id 1 --once
+uv run call_records_watcher.py --city-id 1 --once
 ```
 
-Подробная документация: [rostelcom/README.md](rostelcom/README.md)
+Подробная документация: [rostelcom/README.md](rostelcom/README.md) | [rostelcom/README_EN.md](rostelcom/README_EN.md)
 
 ### Связьтранзит
 
 ```bash
 cd svyaztransit
-python3.12 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp env_example.txt .env
+uv sync
+cp .env.example .env
 # Отредактируйте .env с вашими данными
-python call_records_watcher.py --once
+uv run call_records_watcher.py --once
 ```
 
-Подробная документация: [svyaztransit/README.md](svyaztransit/README.md)
+Подробная документация: [svyaztransit/README.md](svyaztransit/README.md) | [svyaztransit/README_EN.md](svyaztransit/README_EN.md)
 
 ---
 
@@ -93,31 +92,39 @@ python call_records_watcher.py --once
 
 ```
 voip-calls-downloader/
-├── README.md                    # Этот файл
+├── README.md                    # Этот файл (Русский)
+├── README_EN.md                 # Этот файл (Английский)
 ├── LICENSE                      # MIT лицензия
 ├── CHANGELOG.md                 # История изменений
 ├── CONTRIBUTING.md              # Руководство для контрибьюторов
 ├── SECURITY.md                  # Политика безопасности
 ├── .gitignore                   # Исключения для git
+├── .ruff.toml                   # Конфигурация Ruff линтера
+├── pyrightconfig.json           # Конфигурация Pyright type checker
+├── .bandit.yml                  # Конфигурация Bandit security linter
+├── .pre-commit-config.yaml      # Конфигурация pre-commit hooks
 ├── rostelcom/                   # Проект для CloudPBX Ростелеком
-│   ├── README.md                # Документация проекта
+│   ├── README.md                # Документация проекта (Русский)
+│   ├── README_EN.md             # Документация проекта (Английский)
 │   ├── call_records_watcher.py  # Основной скрипт загрузчика
 │   ├── cloudpbx_auth.py         # Модуль аутентификации
 │   ├── multi_account_downloader.py  # Оркестратор для нескольких аккаунтов
-│   ├── config.yaml              # Конфигурация (справочная)
-│   ├── env_example.txt          # Пример конфигурации
-│   ├── requirements.txt         # Зависимости Python
+│   ├── config.py                # Модуль конфигурации (pydantic-settings)
+│   ├── pyproject.toml           # Зависимости и метаданные
+│   ├── .env.example             # Пример конфигурации
 │   ├── run_multi_watcher.sh     # Скрипт запуска (несколько аккаунтов)
 │   ├── run_watcher.sh           # Скрипт запуска (один аккаунт)
 │   └── tests/                   # Тесты
-└── svyaztransit/               # Проект для Связьтранзит
-    ├── README.md                # Документация проекта
+└── svyaztransit/                # Проект для Связьтранзит
+    ├── README.md                # Документация проекта (Русский)
+    ├── README_EN.md             # Документация проекта (Английский)
     ├── call_records_watcher.py  # Основной скрипт загрузчика
     ├── stranzit_auth.py         # Модуль аутентификации
+    ├── config.py                # Модуль конфигурации (pydantic-settings)
     ├── health_check.py          # Скрипт проверки состояния
     ├── auto_restart.py          # Скрипт автоматического перезапуска
-    ├── env_example.txt          # Пример конфигурации
-    ├── requirements.txt         # Зависимости Python
+    ├── pyproject.toml           # Зависимости и метаданные
+    ├── .env.example             # Пример конфигурации
     ├── run_watcher.sh           # Скрипт запуска
     └── setup_cron.sh            # Скрипт настройки автоматического запуска
 ```
@@ -130,12 +137,24 @@ voip-calls-downloader/
 
 **⚠️ ВАЖНО:** 
 - Никогда не коммитьте `.env` файлы в git
-- Используйте `env_example.txt` как шаблон
+- Используйте `.env.example` как шаблон
 - Храните секреты только в переменных окружения
 
 Подробные инструкции по настройке см. в README каждого проекта:
-- [rostelcom/README.md](rostelcom/README.md)
-- [svyaztransit/README.md](svyaztransit/README.md)
+- [rostelcom/README.md](rostelcom/README.md) | [rostelcom/README_EN.md](rostelcom/README_EN.md)
+- [svyaztransit/README.md](svyaztransit/README.md) | [svyaztransit/README_EN.md](svyaztransit/README_EN.md)
+
+---
+
+## Технологический стек
+
+- **Python 3.12** - Современный Python с последними возможностями
+- **uv** - Быстрый менеджер пакетов Python
+- **pydantic-settings** - Типобезопасное управление конфигурацией
+- **ruff** - Быстрый линтер и форматтер Python
+- **pyright** - Статический анализатор типов
+- **bandit** - Security linter
+- **pre-commit** - Git hooks для качества кода
 
 ---
 
@@ -144,8 +163,10 @@ voip-calls-downloader/
 - [CHANGELOG.md](CHANGELOG.md) — история изменений
 - [CONTRIBUTING.md](CONTRIBUTING.md) — как внести вклад
 - [SECURITY.md](SECURITY.md) — политика безопасности
-- [rostelcom/README.md](rostelcom/README.md) — документация CloudPBX
-- [svyaztransit/README.md](svyaztransit/README.md) — документация Связьтранзит
+- [rostelcom/README_EN.md](rostelcom/README_EN.md) — документация CloudPBX (Английский)
+- [rostelcom/README.md](rostelcom/README.md) — документация CloudPBX (Русский)
+- [svyaztransit/README_EN.md](svyaztransit/README_EN.md) — документация Связьтранзит (Английский)
+- [svyaztransit/README.md](svyaztransit/README.md) — документация Связьтранзит (Русский)
 
 ---
 
@@ -171,4 +192,3 @@ voip-calls-downloader/
 ---
 
 *Автоматизированные инструменты для загрузки записей звонков из VoIP-провайдеров*
-

@@ -10,8 +10,11 @@ import re
 from urllib.parse import urljoin
 import logging
 
-# Настройка логирования
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Настройка логирования с pathname:lineno
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(name)s - %(pathname)s:%(lineno)d - %(message)s',
+)
 logger = logging.getLogger(__name__)
 
 class StranzitAuth:

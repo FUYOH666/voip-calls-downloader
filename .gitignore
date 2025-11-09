@@ -75,6 +75,15 @@ coverage.xml
 .tox/
 .nox/
 
+# === ИНСТРУМЕНТЫ КАЧЕСТВА КОДА ===
+.ruff_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.pyrightcache/
+
 # === ВРЕМЕННЫЕ И ТЕСТОВЫЕ ФАЙЛЫ ===
 research_*
 test_*.json

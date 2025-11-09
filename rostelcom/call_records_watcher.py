@@ -19,10 +19,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 from cloudpbx_auth import CloudPBXAuth
-from dotenv import load_dotenv
-
-# Загрузка конфигурации
-load_dotenv()
+from config import get_config, AppConfig
 
 
 class CallRecord:
@@ -226,27 +223,32 @@ class CallRecordsDownloader:
     def __init__(self, city_name: str = None, login: str = None, password: str = None, 
                  domain: str = None, city_id: int = None):
         """
-        Инициализация загрузчика с параметрами из переменных окружения или явными аргументами.
+        Инициализация загрузчика с параметрами из конфигурации или явными аргументами.
         
         Args:
             city_name: Название города (для логирования)
-            login: Логин CloudPBX (если None, берется из CLOUDPBX_LOGIN)
-            password: Пароль CloudPBX (если None, берется из CLOUDPBX_PASSWORD)
-            domain: Домен CloudPBX (если None, берется из CLOUDPBX_DOMAIN)
+            login: Логин CloudPBX (если None, берется из конфигурации)
+            password: Пароль CloudPBX (если None, берется из конфигурации)
+            domain: Домен CloudPBX (если None, берется из конфигурации)
             city_id: ID города (для загрузки из CITY_N_* переменных)
         """
+        # Загружаем конфигурацию
+        config = get_config()
+        
         # Если указан city_id, загружаем параметры из CITY_N_* переменных
         if city_id is not None:
+            # Прямая загрузка из переменных окружения для city_id
             self.city_name = os.getenv(f'CITY_{city_id}_NAME', f'City-{city_id}')
             self.login = os.getenv(f'CITY_{city_id}_LOGIN')
             self.password = os.getenv(f'CITY_{city_id}_PASSWORD')
             self.domain = os.getenv(f'CITY_{city_id}_DOMAIN')
         else:
-            # Используем явные параметры или старый формат переменных окружения
-            self.city_name = city_name or os.getenv('CLOUDPBX_CITY_NAME', 'Unknown')
-            self.login = login or os.getenv('CLOUDPBX_LOGIN')
-            self.password = password or os.getenv('CLOUDPBX_PASSWORD')
-            self.domain = domain or os.getenv('CLOUDPBX_DOMAIN')
+            # Используем явные параметры или конфигурацию
+            cloudpbx_config = config.cloudpbx
+            self.city_name = city_name or cloudpbx_config.login or 'Unknown'
+            self.login = login or cloudpbx_config.login
+            self.password = password or cloudpbx_config.password
+            self.domain = domain or cloudpbx_config.domain
         
         if not all([self.login, self.password, self.domain]):
             raise ValueError(
@@ -254,31 +256,39 @@ class CallRecordsDownloader:
                 f"login, password, domain"
             )
         
-        # Настройки загрузки
-        self.download_dir = os.getenv('DOWNLOAD_DIR', './downloads')
-        self.check_interval = int(os.getenv('CHECK_INTERVAL', '300'))  # 5 минут
-        self.min_duration = int(os.getenv('MIN_DURATION_SECONDS', '180'))  # 3 минуты
-        self.only_incoming = os.getenv('ONLY_INCOMING', 'true').lower() == 'true'
-        self.lookback_hours = int(os.getenv('LOOKBACK_HOURS', '24'))
+        # Настройки загрузки из конфигурации
+        download_config = config.download
+        filter_config = config.filters
+        db_config = config.database
+        log_config = config.logging
+        
+        self.download_dir = download_config.download_dir
+        self.check_interval = download_config.check_interval
+        self.min_duration = filter_config.min_duration_seconds
+        self.only_incoming = filter_config.only_incoming
+        self.lookback_hours = download_config.lookback_hours
         
         # Инициализация компонентов
         self.auth = CloudPBXAuth(login=self.login, domain=self.domain)
-        self.db = DatabaseManager(os.getenv('DATABASE_PATH', './cloudpbx_calls.db'))
+        self.db = DatabaseManager(str(db_config.database_path))
         
-        # Настройка логирования
-        log_level = os.getenv('LOG_LEVEL', 'INFO')
+        # Настройка логирования с pathname:lineno
+        log_format = log_config.format
+        log_handlers = [logging.StreamHandler()]
+        if log_config.log_file:
+            log_handlers.append(logging.FileHandler(log_config.log_file))
+        else:
+            log_handlers.append(logging.FileHandler('watcher.log'))
+        
         logging.basicConfig(
-            level=getattr(logging, log_level),
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler('watcher.log'),
-                logging.StreamHandler()
-            ]
+            level=getattr(logging, log_config.level),
+            format=log_format,
+            handlers=log_handlers,
+            force=True,  # Перезаписываем существующую конфигурацию
         )
         self.logger = logging.getLogger(__name__)
         
-        # Создание директории для загрузок
-        Path(self.download_dir).mkdir(parents=True, exist_ok=True)
+        # Создание директории для загрузок (уже создается в валидаторе)
         
         self.logger.info(f"Инициализация загрузчика CloudPBX RT для города: {self.city_name}")
         self.logger.info(f"Домен: {self.domain}")
@@ -531,6 +541,111 @@ class CallRecordsDownloader:
             self.auth.logout()
             sys.exit(1)
 
+    def health_check(self) -> dict:
+        """
+        Проверка состояния системы (health check).
+        
+        Returns:
+            dict: Статус системы с информацией о версиях, подключениях и конфигурации
+        """
+        import sys
+        import sqlite3
+        import requests
+        
+        health = {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "versions": {
+                "python": sys.version.split()[0],
+                "requests": requests.__version__,
+            },
+            "configuration": {
+                "city_name": self.city_name,
+                "domain": self.domain,
+                "download_dir": str(self.download_dir),
+                "check_interval": self.check_interval,
+                "min_duration": self.min_duration,
+                "only_incoming": self.only_incoming,
+                "lookback_hours": self.lookback_hours,
+            },
+            "checks": {},
+        }
+        
+        # Проверка базы данных
+        try:
+            with sqlite3.connect(self.db.db_path) as conn:
+                cursor = conn.execute("SELECT COUNT(*) FROM downloaded_records")
+                total_records = cursor.fetchone()[0]
+            health["checks"]["database"] = {
+                "status": "ok",
+                "path": str(self.db.db_path),
+                "total_records": total_records,
+            }
+        except Exception as e:
+            health["checks"]["database"] = {
+                "status": "error",
+                "error": str(e),
+            }
+            health["status"] = "degraded"
+        
+        # Проверка директории загрузок
+        try:
+            download_path = Path(self.download_dir)
+            if download_path.exists() and download_path.is_dir():
+                # Проверяем доступность записи
+                test_file = download_path / ".health_check"
+                test_file.touch()
+                test_file.unlink()
+                health["checks"]["download_dir"] = {
+                    "status": "ok",
+                    "path": str(download_path),
+                    "writable": True,
+                }
+            else:
+                health["checks"]["download_dir"] = {
+                    "status": "error",
+                    "error": "Directory does not exist",
+                }
+                health["status"] = "degraded"
+        except Exception as e:
+            health["checks"]["download_dir"] = {
+                "status": "error",
+                "error": str(e),
+            }
+            health["status"] = "degraded"
+        
+        # Проверка подключения к CloudPBX API
+        try:
+            if self.auth.is_authenticated:
+                health["checks"]["cloudpbx_auth"] = {
+                    "status": "ok",
+                    "authenticated": True,
+                    "base_url": self.auth.BASE_URL,
+                }
+            else:
+                # Пробуем аутентифицироваться
+                if self.authenticate():
+                    health["checks"]["cloudpbx_auth"] = {
+                        "status": "ok",
+                        "authenticated": True,
+                        "base_url": self.auth.BASE_URL,
+                    }
+                else:
+                    health["checks"]["cloudpbx_auth"] = {
+                        "status": "error",
+                        "authenticated": False,
+                        "error": "Authentication failed",
+                    }
+                    health["status"] = "unhealthy"
+        except Exception as e:
+            health["checks"]["cloudpbx_auth"] = {
+                "status": "error",
+                "error": str(e),
+            }
+            health["status"] = "unhealthy"
+        
+        return health
+
 
 def main():
     """Главная функция - точка входа приложения."""
@@ -554,12 +669,52 @@ def main():
         type=int,
         help='ID города (1-16) для загрузки из CITY_N_* переменных окружения'
     )
+    parser.add_argument(
+        '--health',
+        action='store_true',
+        help='Выполнить health check и вывести статус системы'
+    )
     
     args = parser.parse_args()
     
+    # Health check команда
+    if args.health:
+        try:
+            downloader = CallRecordsDownloader(city_id=args.city_id if args.city_id else None)
+            health = downloader.health_check()
+            
+            print("\n=== Health Check ===")
+            print(f"Status: {health['status']}")
+            print(f"Timestamp: {health['timestamp']}")
+            print("\nVersions:")
+            for key, value in health['versions'].items():
+                print(f"  {key}: {value}")
+            print("\nConfiguration:")
+            for key, value in health['configuration'].items():
+                if key != 'password':  # Не показываем пароль
+                    print(f"  {key}: {value}")
+            print("\nChecks:")
+            for check_name, check_result in health['checks'].items():
+                status = check_result.get('status', 'unknown')
+                print(f"  {check_name}: {status}")
+                if 'error' in check_result:
+                    print(f"    Error: {check_result['error']}")
+                elif check_name == 'database' and 'total_records' in check_result:
+                    print(f"    Total records: {check_result['total_records']}")
+                elif check_name == 'download_dir' and 'writable' in check_result:
+                    print(f"    Writable: {check_result['writable']}")
+                elif check_name == 'cloudpbx_auth' and 'authenticated' in check_result:
+                    print(f"    Authenticated: {check_result['authenticated']}")
+                    print(f"    Base URL: {check_result.get('base_url', 'N/A')}")
+            
+            sys.exit(0 if health['status'] == 'healthy' else 1)
+        except Exception as e:
+            print(f"❌ Ошибка при выполнении health check: {e}")
+            sys.exit(1)
+    
     try:
         # Создаем downloader с указанием city_id если он передан
-        downloader = CallRecordsDownloader(city_id=args.city_id if hasattr(args, 'city_id') else None)
+        downloader = CallRecordsDownloader(city_id=args.city_id if args.city_id else None)
         
         # Переопределяем lookback_hours если указано
         if args.hours:

@@ -17,11 +17,8 @@ import multiprocessing
 from datetime import datetime
 from typing import List, Dict
 
-from dotenv import load_dotenv
+from config import AppConfig
 from call_records_watcher import CallRecordsDownloader
-
-# Загрузка конфигурации
-load_dotenv()
 
 
 class CityAccount:
@@ -65,21 +62,46 @@ def load_city_accounts() -> List[CityAccount]:
         List[CityAccount]: Список аккаунтов городов
     """
     accounts = []
+    city_configs = AppConfig.load_city_accounts(max_cities=16)
     
     for city_id in range(1, 17):  # 16 городов
-        name = os.getenv(f'CITY_{city_id}_NAME')
-        login = os.getenv(f'CITY_{city_id}_LOGIN')
-        password = os.getenv(f'CITY_{city_id}_PASSWORD')
-        domain = os.getenv(f'CITY_{city_id}_DOMAIN')
+        # Ищем конфигурацию для этого city_id
+        account_config = None
+        for i, cfg in enumerate(city_configs):
+            # Проверяем по переменным окружения для точного соответствия
+            if (os.getenv(f'CITY_{city_id}_NAME') == cfg.name and
+                os.getenv(f'CITY_{city_id}_LOGIN') == cfg.login and
+                os.getenv(f'CITY_{city_id}_DOMAIN') == cfg.domain):
+                account_config = cfg
+                break
         
-        if name and login and password and domain:
-            account = CityAccount(city_id, name, login, password, domain)
+        if account_config:
+            account = CityAccount(
+                city_id,
+                account_config.name or f'City-{city_id}',
+                account_config.login or '',
+                account_config.password or '',
+                account_config.domain or '',
+            )
             if account.is_valid():
                 accounts.append(account)
             else:
-                logging.warning(f"Пропуск города {city_id} ({name}): некорректные учетные данные")
+                logging.warning(f"Пропуск города {city_id} ({account_config.name}): некорректные учетные данные")
         else:
-            logging.debug(f"Город {city_id}: переменные окружения не найдены или неполные")
+            # Fallback на прямую загрузку из переменных окружения
+            name = os.getenv(f'CITY_{city_id}_NAME')
+            login = os.getenv(f'CITY_{city_id}_LOGIN')
+            password = os.getenv(f'CITY_{city_id}_PASSWORD')
+            domain = os.getenv(f'CITY_{city_id}_DOMAIN')
+            
+            if name and login and password and domain:
+                account = CityAccount(city_id, name, login, password, domain)
+                if account.is_valid():
+                    accounts.append(account)
+                else:
+                    logging.warning(f"Пропуск города {city_id} ({name}): некорректные учетные данные")
+            else:
+                logging.debug(f"Город {city_id}: переменные окружения не найдены или неполные")
     
     return accounts
 
@@ -93,17 +115,21 @@ def run_city_downloader(city_id: int, city_name: str, once: bool = False):
         city_name: Название города
         once: True для одного цикла, False для непрерывного режима
     """
-    # Настройка логирования для этого процесса
+    # Настройка логирования для этого процесса с pathname:lineno
     logger = logging.getLogger(f'City-{city_id}')
     logger.setLevel(logging.INFO)
     
     # Файл лога для города
     log_file = f'watcher_city_{city_id}.log'
     file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    file_handler.setFormatter(
+        logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(pathname)s:%(lineno)d - %(message)s')
+    )
     
     console_handler = logging.StreamHandler()
-    console_handler.setFormatter(logging.Formatter(f'[{city_name}] %(asctime)s - %(levelname)s - %(message)s'))
+    console_handler.setFormatter(
+        logging.Formatter(f'[{city_name}] %(asctime)s - %(levelname)s - %(pathname)s:%(lineno)d - %(message)s')
+    )
     
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
@@ -138,15 +164,19 @@ class MultiAccountOrchestrator:
         self.accounts: List[CityAccount] = []
         self.running = False
         
-        # Настройка логирования
-        log_level = os.getenv('LOG_LEVEL', 'INFO')
+        # Настройка логирования с pathname:lineno
+        config = AppConfig()
+        log_config = config.logging
+        log_format = log_config.format
+        
         logging.basicConfig(
-            level=getattr(logging, log_level),
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            level=getattr(logging, log_config.level),
+            format=log_format,
             handlers=[
                 logging.FileHandler('multi_account_orchestrator.log'),
                 logging.StreamHandler()
-            ]
+            ],
+            force=True,  # Перезаписываем существующую конфигурацию
         )
         self.logger = logging.getLogger('Orchestrator')
         
@@ -343,6 +373,11 @@ def main():
         default=3,
         help='Задержка в секундах между запуском процессов (по умолчанию: 3, для защиты от rate limit)'
     )
+    parser.add_argument(
+        '--health',
+        action='store_true',
+        help='Выполнить health check для всех городов и вывести статус системы'
+    )
     
     args = parser.parse_args()
     
@@ -366,6 +401,24 @@ def main():
         if args.status:
             # Показать статус
             orchestrator.print_status()
+            sys.exit(0)
+        
+        if args.health:
+            # Health check для всех городов
+            print("\n=== Health Check для всех городов ===")
+            for account in orchestrator.accounts:
+                try:
+                    downloader = CallRecordsDownloader(city_id=account.city_id)
+                    health = downloader.health_check()
+                    print(f"\n[{account.city_id}] {account.name}:")
+                    print(f"  Status: {health['status']}")
+                    for check_name, check_result in health['checks'].items():
+                        status = check_result.get('status', 'unknown')
+                        print(f"    {check_name}: {status}")
+                        if 'error' in check_result:
+                            print(f"      Error: {check_result['error']}")
+                except Exception as e:
+                    print(f"\n[{account.city_id}] {account.name}: ERROR - {e}")
             sys.exit(0)
         
         # Запускаем все процессы с задержкой
