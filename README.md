@@ -31,6 +31,73 @@ VoIP Calls Downloader — это набор инструментов для ав
 
 ---
 
+## Архитектура
+
+```mermaid
+graph TB
+    subgraph "VoIP Provider APIs"
+        RT[CloudPBX Ростелеком API]
+        ST[Связьтранзит API]
+    end
+    
+    subgraph "Rostelcom Module"
+        RC_Auth[cloudpbx_auth.py<br/>Authentication]
+        RC_Watcher[call_records_watcher.py<br/>Main Watcher]
+        RC_Multi[multi_account_downloader.py<br/>Multi-Account Orchestrator]
+        RC_Config[config.py<br/>Configuration]
+    end
+    
+    subgraph "Svyaztransit Module"
+        ST_Auth[stranzit_auth.py<br/>Authentication]
+        ST_Watcher[call_records_watcher.py<br/>Main Watcher]
+        ST_Health[health_check.py<br/>Health Check]
+        ST_Restart[auto_restart.py<br/>Auto Restart]
+        ST_Config[config.py<br/>Configuration]
+    end
+    
+    subgraph "Storage"
+        LocalFS[Local File System<br/>Downloaded Records]
+        StateDB[State Database<br/>Downloaded Files Tracking]
+    end
+    
+    subgraph "Scheduling"
+        Cron[Cron Jobs]
+        Systemd[Systemd Services]
+    end
+    
+    RT --> RC_Auth
+    RC_Auth --> RC_Watcher
+    RC_Watcher --> RC_Multi
+    RC_Multi --> LocalFS
+    RC_Multi --> StateDB
+    RC_Config --> RC_Watcher
+    
+    ST --> ST_Auth
+    ST_Auth --> ST_Watcher
+    ST_Watcher --> ST_Health
+    ST_Health --> ST_Restart
+    ST_Restart --> LocalFS
+    ST_Restart --> StateDB
+    ST_Config --> ST_Watcher
+    
+    Cron --> RC_Watcher
+    Cron --> ST_Watcher
+    Systemd --> RC_Watcher
+    Systemd --> ST_Watcher
+```
+
+### Компоненты системы
+
+- **Authentication Modules** - Управление аутентификацией с VoIP провайдерами
+- **Watcher Scripts** - Основные скрипты мониторинга и загрузки
+- **Orchestrators** - Управление несколькими аккаунтами (Rostelcom)
+- **Health Check** - Мониторинг состояния системы (Svyaztransit)
+- **Auto Restart** - Автоматический перезапуск при сбоях (Svyaztransit)
+- **Configuration** - Типобезопасное управление конфигурацией через pydantic-settings
+- **Scheduling** - Автоматический запуск через cron или systemd
+
+---
+
 ## Возможности
 
 ### CloudPBX Ростелеком (rostelcom)
